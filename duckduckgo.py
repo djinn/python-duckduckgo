@@ -2,6 +2,7 @@ import urllib
 import urllib2
 import json as j
 import sys
+from collections import namedtuple
 
 __version__ = 0.242
 
@@ -48,132 +49,95 @@ def query(query, useragent='python-duckduckgo '+str(__version__), safesearch=Tru
     json = j.loads(response.read())
     response.close()
 
-    return Results(json)
+    return process_results(json)
 
 
-class Results(object):
+Response = namedtuple('Response', ['type', 'api_version',
+                                   'heading', 'result',
+                                   'related', 'definition',
+                                   'abstract', 'redirect',
+                                   'answer'])
 
-    def __init__(self, json):
-        self.type = {'A': 'answer', 'D': 'disambiguation',
-                     'C': 'category', 'N': 'name',
-                     'E': 'exclusive', '': 'nothing'}.get(json.get('Type',''), '')
+Result = namedtuple('Result', ['html',
+                               'text', 'url',
+                               'icon'])
+Related = namedtuple('Related', ['html', 'text',
+                                 'url', 'icon'])
+Definition = namedtuple('Definition', ['primary','url', 'source'])
 
-        self.json = json
-        self.api_version = None # compat
-
-        self.heading = json.get('Heading', '')
-
-        self.results = [Result(elem) for elem in json.get('Results',[])]
-        self.related = [Result(elem) for elem in
-                        json.get('RelatedTopics',[])]
-
-        self.abstract = Abstract(json)
-        self.redirect = Redirect(json)
-        self.definition = Definition(json)
-        self.answer = Answer(json)
-
-        self.image = Image({'Result':json.get('Image','')})
+Abstract = namedtuple('Abstract', ['primary', 'url', 
+                                   'text', 'source'])
+Redirect = namedtuple('Redirect', ['primary',])
+Icon = namedtuple('Icon', ['url', 'width', 'height'])
+Topic = namedtuple('Topic',['name', 'results'])
+Answer = namedtuple('Answer', ['primary', 'type'])
 
 
-class Abstract(object):
-
-    def __init__(self, json):
-        self.html = json.get('Abstract', '')
-        self.text = json.get('AbstractText', '')
-        self.url = json.get('AbstractURL', '')
-        self.source = json.get('AbstractSource')
-
-class Redirect(object):
-
-    def __init__(self, json):
-        self.url = json.get('Redirect', '')
-
-class Result(object):
-
-    def __init__(self, json):
-        self.topics = json.get('Topics', [])
-        if self.topics:
-            self.topics = [Result(t) for t in self.topics]
-            return
-        self.html = json.get('Result')
-        self.text = json.get('Text')
-        self.url = json.get('FirstURL')
-
-        icon_json = json.get('Icon')
-        if icon_json is not None:
-            self.icon = Image(icon_json)
-        else:
-            self.icon = None
 
 
-class Image(object):
+def result_deserialize(dataset, obj_type):
+    d = dataset
+    topics = None
+    if 'Topics' in d:
+        results = [result_deserialize(t, Result) for t in d['Topics']]
+        return Topic(d['Name'], results=results)
+    text = d['Text']
+    url = d['FirstURL']
+    html = d['Result']
+    i_url = d['Icon']['URL']
+    i_width = d['Icon']['Width']
+    i_height = d['Icon']['Height']
+    icon = None
+    if i_url != '':
+        icon = Icon(url=i_url, width=i_width,
+                    height=i_height)
+    dt = obj_type(text=text, url=url, html=html,
+                      icon=icon)
+    return dt
 
-    def __init__(self, json):
-        self.url = json.get('Result')
-        self.height = json.get('Height', None)
-        self.width = json.get('Width', None)
 
 
-class Answer(object):
-
-    def __init__(self, json):
-        self.text = json.get('Answer')
-        self.type = json.get('AnswerType', '')
-
-class Definition(object):
-    def __init__(self, json):
-        self.text = json.get('Definition','')
-        self.url = json.get('DefinitionURL')
-        self.source = json.get('DefinitionSource')
+def search_deserialize(dataset, prefix, obj_type):
+    keys = dataset.keys()
+    required = filter(lambda x: x.startswith(prefix) and x != prefix, keys)
+    unq_required = [r.split(prefix)[1].lower() for r in required]
+    args = {ur: dataset[r] for ur, r in map(None, unq_required, required)}
+    if prefix in dataset:
+        args['primary'] = dataset[prefix]
+    return obj_type(**args)
 
 
-def get_zci(q, web_fallback=True, priority=['answer', 'abstract', 'related.0', 'definition'], urls=True, **kwargs):
-    '''A helper method to get a single (and hopefully the best) ZCI result.
-    priority=list can be used to set the order in which fields will be checked for answers.
-    Use web_fallback=True to fall back to grabbing the first web result.
-    passed to query. This method will fall back to 'Sorry, no results.' 
-    if it cannot find anything.'''
 
-    ddg = query('\\'+q, **kwargs)
-    response = ''
+def process_results(json):
+    resp_type = {'A': 'answer', 
+                 'D': 'disambiguation',
+                 'C': 'category',
+                 'N': 'name',
+                 'E': 'exclusive', 
+                 '': 'nothing'}.get(json.get('Type',''), '')
 
-    for p in priority:
-        ps = p.split('.')
-        type = ps[0]
-        index = int(ps[1]) if len(ps) > 1 else None
-
-        result = getattr(ddg, type)
-        if index is not None: 
-            if not hasattr(result, '__getitem__'): raise TypeError('%s field is not indexable' % type)
-            result = result[index] if len(result) > index else None
-        if not result: continue
-
-        if result.text: response = result.text
-        if result.text and hasattr(result,'url') and urls: 
-            if result.url: response += ' (%s)' % result.url
-        if response: break
-
-    # if there still isn't anything, try to get the first web result
-    if not response and web_fallback:
-        if ddg.redirect.url:
-            response = ddg.redirect.url
-
-    # final fallback
-    if not response: 
-        response = 'Sorry, no results.'
-
-    return response
+    redirect = search_deserialize(json, 'Redirect', Redirect)
+    abstract = search_deserialize(json, 'Abstract', Abstract)
+    definition = search_deserialize(json, 'Definition', Definition)
+    js_results = json.get('Results', [])
+    results = [result_deserialize(jr, Result) for jr in js_results]
+    js_related = json.get('RelatedTopics', [])
+    related = [result_deserialize(jr, Related) for jr in js_related]
+    answer = search_deserialize(json, 'Answer', Answer)
+    return Response(type=resp_type, api_version=__version__,
+                    heading='', redirect=redirect,
+                    abstract=abstract,
+                    definition=definition,
+                    answer=answer,
+                    related=related,
+                    result=results)
 
 def main():
     if len(sys.argv) > 1:
         q = query(' '.join(sys.argv[1:]))
-        keys = q.json.keys()
-        keys.sort()
-        for key in keys:
-            sys.stdout.write(key)
-            if type(q.json[key]) in [str,unicode]: print(':', q.json[key])
-            else: 
-                sys.stdout.write('\n')
-                for i in q.json[key]: print('\t',i)
+        print q
     else:
         print('Usage: %s [query]' % sys.argv[0])
+
+if __name__ == '__main__':
+    main()
