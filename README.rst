@@ -57,8 +57,8 @@ Usage
 
     
     >>> print duckduckgo.query('how to spell test', html=True).answer.primary
-<b>Test</b> appears to be spelled correctly!<br/><i>Suggestions:</i> <a href='/?q=define+test'>test</a> <a href='/?q=define+testy'>testy</a> <a href='/?q=define+teat'>teat</a> <a href='/?q=define+tests'>tests</a> <a href='/?q=define+rest'>rest</a> <a href='/?q=define+yest'>yest</a> .
-The easiest method of quickly grabbing the best (hopefully) API result is to use duckduckgo.get_zci::
+    <b>Test</b> appears to be spelled correctly!<br/><i>Suggestions:</i> <a href='/?q=define+test'>test</a> <a href='/?q=define+testy'>testy</a> <a href='/?q=define+teat'>teat</a> <a href='/?q=define+tests'>tests</a> <a href='/?q=define+rest'>rest</a> <a href='/?q=define+yest'>yest</a> .
+    The easiest method of quickly grabbing the best (hopefully) API result is to use duckduckgo.get_zci::
     
 Special keyword args for query():
  - useragent   - string, The useragent used to make API calls. This is somewhat irrelevant, as they are not logged or used on DuckDuckGo, but it is retained for backwards compatibility.
