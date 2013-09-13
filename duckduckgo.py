@@ -6,6 +6,27 @@ from collections import namedtuple
 
 __version__ = 0.242
 
+Response = namedtuple('Response', ['type', 'api_version',
+                                   'heading', 'result',
+                                   'related', 'definition',
+                                   'abstract', 'redirect',
+                                   'answer', 'error_code', 
+                                   'error_msg'])
+Result = namedtuple('Result', ['html',
+                               'text', 'url',
+                               'icon'])
+Related = namedtuple('Related', ['html', 'text',
+                                 'url', 'icon'])
+Definition = namedtuple('Definition', ['primary','url', 'source'])
+
+Abstract = namedtuple('Abstract', ['primary', 'url', 
+                                   'text', 'source'])
+Redirect = namedtuple('Redirect', ['primary',])
+Icon = namedtuple('Icon', ['url', 'width', 'height'])
+Topic = namedtuple('Topic',['name', 'results'])
+Answer = namedtuple('Answer', ['primary', 'type'])
+
+
 
 def query(query, useragent='python-duckduckgo '+str(__version__), safesearch=True, html=False, meanings=True, **kwargs):
     """
@@ -43,34 +64,36 @@ def query(query, useragent='python-duckduckgo '+str(__version__), safesearch=Tru
     params.update(kwargs)
     encparams = urllib.urlencode(params)
     url = 'http://api.duckduckgo.com/?' + encparams
-
     request = urllib2.Request(url, headers={'User-Agent': useragent})
-    response = urllib2.urlopen(request)
-    json = j.loads(response.read())
+    try:
+        response = urllib2.urlopen(request)
+    except urllib2.URLError, e:
+        return Response(type='Error', api_version=__version__,
+                        heading=None, redirect=None,
+                        abstract=None,
+                        definition=None,
+                        answer=None,
+                        related=None,
+                        result=None, error_code=1,
+                        error_msg=str(e))
+
+    try:
+        json = j.loads(response.read())
+    except Exception, e:
+        return Response(type='Error', api_version=__version__,
+                        heading=None, redirect=None,
+                        abstract=None,
+                        definition=None,
+                        answer=None,
+                        related=None,
+                        result=None, error_code=2,
+                        error_msg='Data from api malformed')
+
     response.close()
 
     return process_results(json)
 
 
-Response = namedtuple('Response', ['type', 'api_version',
-                                   'heading', 'result',
-                                   'related', 'definition',
-                                   'abstract', 'redirect',
-                                   'answer'])
-
-Result = namedtuple('Result', ['html',
-                               'text', 'url',
-                               'icon'])
-Related = namedtuple('Related', ['html', 'text',
-                                 'url', 'icon'])
-Definition = namedtuple('Definition', ['primary','url', 'source'])
-
-Abstract = namedtuple('Abstract', ['primary', 'url', 
-                                   'text', 'source'])
-Redirect = namedtuple('Redirect', ['primary',])
-Icon = namedtuple('Icon', ['url', 'width', 'height'])
-Topic = namedtuple('Topic',['name', 'results'])
-Answer = namedtuple('Answer', ['primary', 'type'])
 
 
 
@@ -98,6 +121,8 @@ def result_deserialize(dataset, obj_type):
 
 
 def search_deserialize(dataset, prefix, obj_type):
+    if dataset[prefix] == '':
+        return None
     keys = dataset.keys()
     required = filter(lambda x: x.startswith(prefix) and x != prefix, keys)
     unq_required = [r.split(prefix)[1].lower() for r in required]
@@ -115,7 +140,12 @@ def process_results(json):
                  'N': 'name',
                  'E': 'exclusive', 
                  '': 'nothing'}.get(json.get('Type',''), '')
-
+    if resp_type == 'Nothing':
+        return Response(type='nothing', api_version=0.242, heading=None, 
+                        result=None, related=None, definition=None, 
+                        abstract=None, redirect=None, answer=None,
+                        error_code=0, error_msg=None)
+    
     redirect = search_deserialize(json, 'Redirect', Redirect)
     abstract = search_deserialize(json, 'Abstract', Abstract)
     definition = search_deserialize(json, 'Definition', Definition)
@@ -130,7 +160,8 @@ def process_results(json):
                     definition=definition,
                     answer=answer,
                     related=related,
-                    result=results)
+                    result=results, error_code=0,
+                    error_msg=None)
 
 def main():
     if len(sys.argv) > 1:
@@ -139,5 +170,3 @@ def main():
     else:
         print('Usage: %s [query]' % sys.argv[0])
 
-if __name__ == '__main__':
-    main()
