@@ -25,16 +25,18 @@ Usage
     >>> import duckduckgo
     >>> r = duckduckgo.query('DuckDuckGo')
     >>> r.type
-    u'answer'
-    >>> r.results[0].text
+    'answer'
+    >>> r.result[0]
+    Result(html=u'<a href="https://duckduckgo.com/">Official site</a><a href="https://duckduckgo.com/"></a>', text=u'Official site', url=u'https://duckduckgo.com/', icon=Icon(url=u'https://i.duckduckgo.com/i/duckduckgo.com.ico', width=16, height=16))
+    >>> r.result[0].text
     u'Official site'
-    >>> r.results[0].url
-    u'http://duckduckgo.com/'
+    >>> r.abstract
+    Abstract(primary=u'DuckDuckGo is an Internet search engine that uses information from many sources, such as crowdsourced websites like Wikipedia and from partnerships with other search engines like Yandex, Yahoo!, Bing and WolframAlpha to obtain its results.', url=u'https://en.wikipedia.org/wiki/DuckDuckGo', text=u'DuckDuckGo is an Internet search engine that uses information from many sources, such as crowdsourced websites like Wikipedia and from partnerships with other search engines like Yandex, Yahoo!, Bing and WolframAlpha to obtain its results.', source=u'Wikipedia')
     >>> r.abstract.url
-    u'http://en.wikipedia.org/wiki/Duck_Duck_Go'
+    u'https://en.wikipedia.org/wiki/DuckDuckGo'
     >>> r.abstract.source
     u'Wikipedia'
-    
+ 
     >>> r = duckduckgo.query('Python')
     >>> r.type
     u'disambiguation'
@@ -45,26 +47,19 @@ Usage
     >>> r.related[7].topics[0].text # weird, but this is how the DDG API is currently organized
     u'Armstrong Siddeley Python, an early turboprop engine'
 
-
     >>> r = duckduckgo.query('1 + 1')
     >>> r.type
-    u'nothing'
-    >>> r.answer.text
+    'exclusive'
+    >>> r.answer.primary
     u'1 + 1 = 2'
     >>> r.answer.type
     u'calc'
 
-    >>> print duckduckgo.query('19301', kad='es_ES').answer.text
-    19301 es un código postal de Paoli, PA
-    >>> print duckduckgo.query('how to spell test', html=True).answer.text
-    <b>Test</b> appears to be spelled right!<br/><i>Suggestions: </i>test, testy, teat, tests, rest, yest.
-
+    
+    >>> print duckduckgo.query('how to spell test', html=True).answer.primary
+<b>Test</b> appears to be spelled correctly!<br/><i>Suggestions:</i> <a href='/?q=define+test'>test</a> <a href='/?q=define+testy'>testy</a> <a href='/?q=define+teat'>teat</a> <a href='/?q=define+tests'>tests</a> <a href='/?q=define+rest'>rest</a> <a href='/?q=define+yest'>yest</a> .
 The easiest method of quickly grabbing the best (hopefully) API result is to use duckduckgo.get_zci::
-    >>> print duckduckgo.get_zci('foo')
-    The terms foobar /ˈfʊːbɑːr/, fubar, or foo, bar, baz and qux are sometimes used as placeholder names in computer programming or computer-related documentation. (https://en.wikipedia.org/wiki/Foobar)
-    >>> print ddg.get_zci('foo fighters site')
-    http://www.foofighters.com/us/home
-
+    
 Special keyword args for query():
  - useragent   - string, The useragent used to make API calls. This is somewhat irrelevant, as they are not logged or used on DuckDuckGo, but it is retained for backwards compatibility.
  - safesearch  - boolean, enable or disable safesearch.
